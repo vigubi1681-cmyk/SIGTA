@@ -1,0 +1,120 @@
+@host = http://localhost:8080
+
+### 1. Sin token (401)
+GET {{host}}/api/solicitudes
+
+### 2. Registro de ciudadano (201 con usuarioId y personaId)
+POST {{host}}/api/auth/registro
+Content-Type: application/json
+
+{
+  "persona": {
+    "tipoPersona": "NATURAL",
+    "tipoDocumento": "DNI",
+    "numeroDocumento": "45678912",
+    "nombres": "Ana",
+    "apellidos": "Ciudadana",
+    "correo": "ana@example.com",
+    "telefono": "999111222"
+  },
+  "password": "Clave12345"
+}
+
+### 3. Login ciudadano (devuelve token)
+# @name loginCiudadano
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{ "correo": "ana@example.com", "password": "Clave12345" }
+
+###
+@tokenCiudadano = {{loginCiudadano.response.body.$.token}}
+@personaCiudadano = {{loginCiudadano.response.body.$.personaId}}
+
+### 4. Quién soy (rol CIUDADANO)
+GET {{host}}/api/auth/me
+Authorization: Bearer {{tokenCiudadano}}
+
+### 5. Contraseña incorrecta (401)
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{ "correo": "ana@example.com", "password": "otra-clave" }
+
+### 6. Ciudadano crea su establecimiento (201)
+# @name estCiudadano
+POST {{host}}/api/establecimientos
+Authorization: Bearer {{tokenCiudadano}}
+Content-Type: application/json
+
+{
+  "titularPersonaId": {{personaCiudadano}},
+  "nombreComercial": "Bodega de Ana",
+  "direccion": "Jr. Prueba 456, Chorrillos",
+  "areaM2": 30
+}
+
+###
+@establecimientoCiudadano = {{estCiudadano.response.body.$.id}}
+
+### 7. Ciudadano intenta registrar establecimiento de la persona 1 (403)
+POST {{host}}/api/establecimientos
+Authorization: Bearer {{tokenCiudadano}}
+Content-Type: application/json
+
+{ "titularPersonaId": 1, "nombreComercial": "Ajeno", "direccion": "X" }
+
+### 8. Ciudadano crea su solicitud de licencia (201)
+# @name solCiudadano
+POST {{host}}/api/solicitudes/licencia
+Authorization: Bearer {{tokenCiudadano}}
+Content-Type: application/json
+
+{
+  "solicitanteId": {{personaCiudadano}},
+  "establecimientoId": {{establecimientoCiudadano}},
+  "declaracionSeguridad": true
+}
+
+###
+@solicitudCiudadano = {{solCiudadano.response.body.$.id}}
+
+### 9. Ciudadano presenta su solicitud (204)
+POST {{host}}/api/solicitudes/{{solicitudCiudadano}}/presentar
+Authorization: Bearer {{tokenCiudadano}}
+
+### 10. Ciudadano lista: solo ve la suya
+GET {{host}}/api/solicitudes
+Authorization: Bearer {{tokenCiudadano}}
+
+### 11. Ciudadano pide una solicitud ajena, la 1 de la Parte 3 (404)
+GET {{host}}/api/solicitudes/1
+Authorization: Bearer {{tokenCiudadano}}
+
+### 12. Login administrador
+# @name loginAdmin
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{ "correo": "admin@sigta.local", "password": "Admin12345!" }
+
+###
+@tokenAdmin = {{loginAdmin.response.body.$.token}}
+
+### 13. Administrador lista todas las presentadas
+GET {{host}}/api/solicitudes?estado=PRESENTADA
+Authorization: Bearer {{tokenAdmin}}
+
+### 14. Administrador crea personal de mesa de partes (201)
+POST {{host}}/api/usuarios
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "correo": "mesa@sigta.local", "password": "Mesa12345", "rol": "MESA_PARTES" }
+
+### 15. Ciudadano intenta crear un usuario (403)
+POST {{host}}/api/usuarios
+Authorization: Bearer {{tokenCiudadano}}
+Content-Type: application/json
+
+{ "correo": "x@sigta.local", "password": "Xxxxxx12345", "rol": "ADMINISTRADOR" }

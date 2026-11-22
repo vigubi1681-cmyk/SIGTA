@@ -1,0 +1,157 @@
+@host = http://localhost:8080
+
+### 1. Login ciudadano
+# @name loginCiudadano
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{ "correo": "ana@example.com", "password": "Clave12345" }
+
+###
+@tokenCiudadano = {{loginCiudadano.response.body.$.token}}
+@personaCiudadano = {{loginCiudadano.response.body.$.personaId}}
+
+### 2. Login evaluador
+# @name loginEval
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{ "correo": "evaluador@sigta.local", "password": "Eval12345" }
+
+###
+@tokenEval = {{loginEval.response.body.$.token}}
+
+### 3. Establecimiento y solicitud nuevos
+# @name est
+POST {{host}}/api/establecimientos
+Authorization: Bearer {{tokenCiudadano}}
+Content-Type: application/json
+
+{ "titularPersonaId": {{personaCiudadano}}, "nombreComercial": "Libreria Adjuntos", "direccion": "Av. Prueba 1" }
+
+###
+@establecimiento = {{est.response.body.$.id}}
+
+### 4. Crear solicitud
+# @name sol
+POST {{host}}/api/solicitudes/licencia
+Authorization: Bearer {{tokenCiudadano}}
+Content-Type: application/json
+
+{ "solicitanteId": {{personaCiudadano}}, "establecimientoId": {{establecimiento}}, "declaracionSeguridad": true }
+
+###
+@solicitud = {{sol.response.body.$.id}}
+
+### 5. Subir un PDF real (201)
+# @name adj
+POST {{host}}/api/solicitudes/{{solicitud}}/adjuntos
+Authorization: Bearer {{tokenCiudadano}}
+Content-Type: multipart/form-data; boundary=----Limite
+
+------Limite
+Content-Disposition: form-data; name="tipoDocumento"
+
+Plano de ubicación
+------Limite
+Content-Disposition: form-data; name="archivo"; filename="plano.pdf"
+Content-Type: application/pdf
+
+< ./archivos-prueba/plano.pdf
+------Limite--
+
+###
+@adjunto = {{adj.response.body.$.id}}
+
+### 6. Subir una imagen PNG (201)
+POST {{host}}/api/solicitudes/{{solicitud}}/adjuntos
+Authorization: Bearer {{tokenCiudadano}}
+Content-Type: multipart/form-data; boundary=----Limite
+
+------Limite
+Content-Disposition: form-data; name="tipoDocumento"
+
+Fotografía de la fachada
+------Limite
+Content-Disposition: form-data; name="archivo"; filename="foto.png"
+Content-Type: image/png
+
+< ./archivos-prueba/foto.png
+------Limite--
+
+### 7. Archivo falso con extensión .pdf (400: "El contenido del archivo no es un PDF, PNG o JPG válido")
+POST {{host}}/api/solicitudes/{{solicitud}}/adjuntos
+Authorization: Bearer {{tokenCiudadano}}
+Content-Type: multipart/form-data; boundary=----Limite
+
+------Limite
+Content-Disposition: form-data; name="tipoDocumento"
+
+Documento falso
+------Limite
+Content-Disposition: form-data; name="archivo"; filename="falso.pdf"
+Content-Type: application/pdf
+
+< ./archivos-prueba/falso.pdf
+------Limite--
+
+### 8. Evaluador intenta subir (403)
+POST {{host}}/api/solicitudes/{{solicitud}}/adjuntos
+Authorization: Bearer {{tokenEval}}
+Content-Type: multipart/form-data; boundary=----Limite
+
+------Limite
+Content-Disposition: form-data; name="tipoDocumento"
+
+X
+------Limite
+Content-Disposition: form-data; name="archivo"; filename="plano.pdf"
+Content-Type: application/pdf
+
+< ./archivos-prueba/plano.pdf
+------Limite--
+
+### 9. Listar adjuntos (2 archivos, sin la ruta del servidor)
+GET {{host}}/api/solicitudes/{{solicitud}}/adjuntos
+Authorization: Bearer {{tokenCiudadano}}
+
+### 10. Descargar el PDF (200, contenido del archivo)
+GET {{host}}/api/solicitudes/{{solicitud}}/adjuntos/{{adjunto}}/archivo
+Authorization: Bearer {{tokenCiudadano}}
+
+### 11. Adjuntos de una solicitud ajena, la 1 de la Parte 3 (404)
+GET {{host}}/api/solicitudes/1/adjuntos
+Authorization: Bearer {{tokenCiudadano}}
+
+### 12. Presentar y tomar a revisión
+POST {{host}}/api/solicitudes/{{solicitud}}/presentar
+Authorization: Bearer {{tokenCiudadano}}
+
+###
+POST {{host}}/api/solicitudes/{{solicitud}}/revisar
+Authorization: Bearer {{tokenEval}}
+
+### 13. Observar un adjunto SIN texto (400: "Indique la observacion de la revision")
+POST {{host}}/api/solicitudes/{{solicitud}}/adjuntos/{{adjunto}}/revisar
+Authorization: Bearer {{tokenEval}}
+Content-Type: application/json
+
+{ "estado": "OBSERVADO" }
+
+### 14. Validar el adjunto (204)
+POST {{host}}/api/solicitudes/{{solicitud}}/adjuntos/{{adjunto}}/revisar
+Authorization: Bearer {{tokenEval}}
+Content-Type: application/json
+
+{ "estado": "VALIDADO" }
+
+### 15. Ver el nuevo estado del adjunto (estadoRevision: VALIDADO)
+GET {{host}}/api/solicitudes/{{solicitud}}/adjuntos
+Authorization: Bearer {{tokenEval}}
+
+### 16. Ciudadano intenta validar su propio adjunto (403)
+POST {{host}}/api/solicitudes/{{solicitud}}/adjuntos/{{adjunto}}/revisar
+Authorization: Bearer {{tokenCiudadano}}
+Content-Type: application/json
+
+{ "estado": "VALIDADO" }

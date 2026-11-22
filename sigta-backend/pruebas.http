@@ -1,0 +1,152 @@
+### 1. Registrar persona natural (debe devolver 201 con un id)
+POST http://localhost:8080/api/personas
+Content-Type: application/json
+
+{
+  "tipoPersona": "NATURAL",
+  "tipoDocumento": "DNI",
+  "numeroDocumento": "12345678",
+  "nombres": "Persona",
+  "apellidos": "Demo",
+  "correo": "demo@example.com",
+  "telefono": "987654321",
+  "direccion": "Av. Demo 123"
+}
+
+### 2. Mismo DNI otra vez (debe devolver el MISMO id, no duplicar)
+POST http://localhost:8080/api/personas
+Content-Type: application/json
+
+{
+  "tipoPersona": "NATURAL",
+  "tipoDocumento": "DNI",
+  "numeroDocumento": "12345678",
+  "nombres": "Persona",
+  "apellidos": "Demo",
+  "correo": "nuevo@example.com",
+  "telefono": "999888777"
+}
+
+### 3. DNI inválido (debe devolver 400 con "El DNI debe tener 8 digitos")
+POST http://localhost:8080/api/personas
+Content-Type: application/json
+
+{
+  "tipoPersona": "NATURAL",
+  "tipoDocumento": "DNI",
+  "numeroDocumento": "123",
+  "nombres": "A",
+  "apellidos": "B",
+  "correo": "a@b.com",
+  "telefono": "1"
+}
+
+### 4. Correo mal escrito (400 por validación del DTO)
+POST http://localhost:8080/api/personas
+Content-Type: application/json
+
+{
+  "tipoPersona": "NATURAL",
+  "tipoDocumento": "DNI",
+  "numeroDocumento": "87654321",
+  "nombres": "A",
+  "apellidos": "B",
+  "correo": "esto-no-es-correo",
+  "telefono": "1"
+}
+
+### 5. Registrar establecimiento (cambia titularPersonaId por el id del paso 1)
+POST http://localhost:8080/api/establecimientos
+Content-Type: application/json
+
+{
+  "titularPersonaId": 2,
+  "nombreComercial": "Libreria de prueba",
+  "actividadEconomica": "Venta de libros",
+  "direccion": "Calle Ficticia 001, Chorrillos",
+  "referencia": "Frente al parque",
+  "areaM2": 45.50,
+  "condicionTitular": "PROPIETARIO"
+}
+
+### 6. Crear solicitud de licencia (201 con id y código LF-2026-00000X)
+POST http://localhost:8080/api/solicitudes/licencia
+Content-Type: application/json
+
+{
+  "solicitanteId": 2,
+  "establecimientoId": 1,
+  "declaracionSeguridad": true,
+  "observaciones": "Prueba"
+}
+
+### 7. Licencia con establecimiento inexistente (400: "El establecimiento no pertenece al solicitante")
+POST http://localhost:8080/api/solicitudes/licencia
+Content-Type: application/json
+
+{
+  "solicitanteId": 2,
+  "establecimientoId": 999
+}
+
+### 8. Crear solicitud de anuncio (201, código AA-2026-...)
+POST http://localhost:8080/api/solicitudes/anuncio
+Content-Type: application/json
+
+{
+  "solicitanteId": 2,
+  "establecimientoId": 1,
+  "tipoElemento": "Panel",
+  "tipoPropiedad": "DOMINIO_PRIVADO",
+  "material": "Metal",
+  "altoM": 2.5,
+  "anchoM": 4.0,
+  "numeroCaras": 1,
+  "tipoIluminacion": "ILUMINADO",
+  "contenidoAnuncio": "Libreria de prueba",
+  "descripcionUbicacion": "Fachada frontal",
+  "modalidad": "PERMANENTE"
+}
+
+### 9. Anuncio temporal sin fechas (400: "Una modalidad temporal requiere fecha de inicio y fin")
+POST http://localhost:8080/api/solicitudes/anuncio
+Content-Type: application/json
+
+{
+  "solicitanteId": 1,
+  "tipoElemento": "Panel",
+  "tipoPropiedad": "DOMINIO_PRIVADO",
+  "altoM": 2,
+  "anchoM": 3,
+  "contenidoAnuncio": "Texto",
+  "modalidad": "TEMPORAL"
+}
+
+### 10. Crear duplicado (201, código DL-2026-...)
+POST http://localhost:8080/api/solicitudes/duplicado
+Content-Type: application/json
+
+{
+  "solicitanteId": 2,
+  "establecimientoId": 1,
+  "numeroLicencia": "LIC-2026-000001",
+  "motivo": "PERDIDA"
+}
+
+### 11. Presentar la solicitud 1 (204 sin contenido)
+POST http://localhost:8080/api/solicitudes/1/presentar
+
+### 12. Presentar otra vez (400: "Solo se puede presentar una solicitud en borrador")
+POST http://localhost:8080/api/solicitudes/1/presentar
+
+### 13. Detalle de la solicitud 1
+GET http://localhost:8080/api/solicitudes/1
+
+### 14. Solicitud inexistente (404)
+GET http://localhost:8080/api/solicitudes/9999
+
+### 15. Mis trámites (todas las de la persona 1)
+GET http://localhost:8080/api/solicitudes?solicitanteId=2
+
+### 16. Solo las presentadas
+GET http://localhost:8080/api/solicitudes?solicitanteId=2&estado=PRESENTADA

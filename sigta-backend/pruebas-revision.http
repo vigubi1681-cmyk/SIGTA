@@ -1,0 +1,155 @@
+@host = http://localhost:8080
+
+### 1. Login administrador
+# @name loginAdmin
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{ "correo": "admin@sigta.local", "password": "Admin12345!" }
+
+###
+@tokenAdmin = {{loginAdmin.response.body.$.token}}
+
+### 2. Crear usuario evaluador (201; si ya existe, da 400 y sigue sin problema)
+POST {{host}}/api/usuarios
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "correo": "evaluador@sigta.local", "password": "Eval12345", "rol": "EVALUADOR" }
+
+### 3. Login evaluador
+# @name loginEval
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{ "correo": "evaluador@sigta.local", "password": "Eval12345" }
+
+###
+@tokenEval = {{loginEval.response.body.$.token}}
+
+### 4. Login ciudadano (el de la Parte 4)
+# @name loginCiudadano
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{ "correo": "ana@example.com", "password": "Clave12345" }
+
+###
+@tokenCiudadano = {{loginCiudadano.response.body.$.token}}
+@personaCiudadano = {{loginCiudadano.response.body.$.personaId}}
+
+### 5. Ciudadano crea un establecimiento nuevo
+# @name est
+POST {{host}}/api/establecimientos
+Authorization: Bearer {{tokenCiudadano}}
+Content-Type: application/json
+
+{ "titularPersonaId": {{personaCiudadano}}, "nombreComercial": "Cafe de Ana", "direccion": "Av. Huaylas 100, Chorrillos" }
+
+###
+@establecimiento = {{est.response.body.$.id}}
+
+### 6. Ciudadano crea la solicitud
+# @name sol
+POST {{host}}/api/solicitudes/licencia
+Authorization: Bearer {{tokenCiudadano}}
+Content-Type: application/json
+
+{ "solicitanteId": {{personaCiudadano}}, "establecimientoId": {{establecimiento}}, "declaracionSeguridad": true }
+
+###
+@solicitud = {{sol.response.body.$.id}}
+
+### 7. Ciudadano la presenta (204)
+POST {{host}}/api/solicitudes/{{solicitud}}/presentar
+Authorization: Bearer {{tokenCiudadano}}
+
+### 8. Bandeja del evaluador: debe aparecer la solicitud
+GET {{host}}/api/solicitudes?estado=PRESENTADA
+Authorization: Bearer {{tokenEval}}
+
+### 9. Evaluador la toma a revisión (204)
+POST {{host}}/api/solicitudes/{{solicitud}}/revisar
+Authorization: Bearer {{tokenEval}}
+
+### 10. Observar SIN comentario (400: "Debe registrar el detalle de la observacion o motivo")
+POST {{host}}/api/solicitudes/{{solicitud}}/observar
+Authorization: Bearer {{tokenEval}}
+Content-Type: application/json
+
+{ }
+
+### 11. Observar con comentario (204)
+POST {{host}}/api/solicitudes/{{solicitud}}/observar
+Authorization: Bearer {{tokenEval}}
+Content-Type: application/json
+
+{ "comentario": "Falta indicar el area ocupada del establecimiento" }
+
+### 12. Ciudadano ve el historial (la observación aparece, el campo usuario viene null)
+GET {{host}}/api/solicitudes/{{solicitud}}/historial
+Authorization: Bearer {{tokenCiudadano}}
+
+### 13. Evaluador intenta revisar una solicitud observada sin subsanación (400: Transicion no permitida)
+POST {{host}}/api/solicitudes/{{solicitud}}/revisar
+Authorization: Bearer {{tokenEval}}
+
+### 14. Ciudadano subsana (204)
+POST {{host}}/api/solicitudes/{{solicitud}}/subsanar
+Authorization: Bearer {{tokenCiudadano}}
+Content-Type: application/json
+
+{ "comentario": "Area ocupada: 30 m2" }
+
+### 15. Evaluador vuelve a revisar (204)
+POST {{host}}/api/solicitudes/{{solicitud}}/revisar
+Authorization: Bearer {{tokenEval}}
+
+### 16. Lista de áreas
+GET {{host}}/api/areas
+Authorization: Bearer {{tokenEval}}
+
+### 17. Derivar a Obras Privadas (204)
+POST {{host}}/api/solicitudes/{{solicitud}}/derivar
+Authorization: Bearer {{tokenEval}}
+Content-Type: application/json
+
+{ "areaCodigo": "OBRAS_PRIVADAS", "instruccion": "Verificar condiciones del local" }
+
+### 18. Detalle: estado DERIVADA y area_actual Obras Privadas
+GET {{host}}/api/solicitudes/{{solicitud}}
+Authorization: Bearer {{tokenEval}}
+
+### 19. El área recibe y vuelve a revisión (204)
+POST {{host}}/api/solicitudes/{{solicitud}}/revisar
+Authorization: Bearer {{tokenEval}}
+
+### 20. Ciudadano intenta cancelar estando en revisión (400: Transicion no permitida)
+POST {{host}}/api/solicitudes/{{solicitud}}/cancelar
+Authorization: Bearer {{tokenCiudadano}}
+
+### 21. Ciudadano intenta observar (403)
+POST {{host}}/api/solicitudes/{{solicitud}}/observar
+Authorization: Bearer {{tokenCiudadano}}
+Content-Type: application/json
+
+{ "comentario": "intento no autorizado" }
+
+### 22. Evaluador deniega con motivo (204)
+POST {{host}}/api/solicitudes/{{solicitud}}/denegar
+Authorization: Bearer {{tokenEval}}
+Content-Type: application/json
+
+{ "comentario": "El establecimiento no cumple condiciones de seguridad" }
+
+### 23. Estado final: DENEGADA con fechaCierre
+GET {{host}}/api/solicitudes/{{solicitud}}
+Authorization: Bearer {{tokenCiudadano}}
+
+### 24. Revisar una solicitud ya cerrada (400)
+POST {{host}}/api/solicitudes/{{solicitud}}/revisar
+Authorization: Bearer {{tokenEval}}
+
+### 25. Historial completo visto por el evaluador (con el correo de quien hizo cada paso)
+GET {{host}}/api/solicitudes/{{solicitud}}/historial
+Authorization: Bearer {{tokenEval}}
